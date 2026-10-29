@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "376085880505",
+    "project_id": "pawpulse-17842",
+    "storage_bucket": "pawpulse-17842.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:376085880505:android:545cafd97e2b583dba4568",
+        "android_client_info": {
+          "package_name": "com.example.paw_pulse"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBtvZGY2_37TP9u4eIh7X_b2EyZcJ3ThtI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

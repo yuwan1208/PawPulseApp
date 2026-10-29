@@ -1,0 +1,31 @@
+name: paw_pulse
+description: "A new Flutter project."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+  google_fonts: ^8.2.1
+  firebase_core: ^4.13.0
+  firebase_auth: ^6.5.7
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Asset section added for your logo:
+  assets:
+    - assets/pawpulse.png
+    - assets/user_pets.json

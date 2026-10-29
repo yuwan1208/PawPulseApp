@@ -1,0 +1,99 @@
+{
+  "status": "success",
+  "statusCode": 200,
+  "message": "PawPulse dashboard data retrieved successfully.",
+  "timestamp": "2026-09-22T17:50:00Z",
+  "data": {
+    "user": {
+      "userId": "usr_98231",
+      "email": "euanthony.gargollo@jmc.edu.ph",
+      "displayName": "Euan Gargollo",
+      "role": "Pet Owner",
+      "avatarUrl": "http://googleusercontent.com/image_collection/image_retrieval/5492757166933072418"
+    },
+    "dashboardSummary": {
+      "totalPets": 2,
+      "pendingTasksToday": 2,
+      "upcomingVaccinations": 1
+    },
+    "pets": [
+      {
+        "id": "pet_101",
+        "name": "Kyubi",
+        "species": "Dog",
+        "breed": "Shitzu-Terrier",
+        "ageYears": 3,
+        "weightKg": 10.5,
+        "gender": "Male",
+        "microchipId": "982000361284912",
+        "isVaccinated": true,
+        "avatarUrl": "assets/kyubi.jpg"
+      },
+      {
+        "id": "pet_102",
+        "name": "Mallie",
+        "species": "Cat",
+        "breed": "Persian",
+        "ageYears": 2,
+        "weightKg": 4.2,
+        "gender": "Female",
+        "microchipId": "982000491823019",
+        "isVaccinated": true,
+        "avatarUrl": "assets/mallie.jpg"
+      }
+    ],
+    "schedules": [
+      {
+        "id": "sch_301",
+        "petId": "pet_101",
+        "petName": "Kyubi",
+        "title": "Morning Kibble & Omega-3",
+        "category": "Feeding",
+        "scheduledTime": "07:30 AM",
+        "isCompleted": true
+      },
+      {
+        "id": "sch_302",
+        "petId": "pet_102",
+        "petName": "Mallie",
+        "title": "Deworming Medication",
+        "category": "Medication",
+        "scheduledTime": "06:00 PM",
+        "isCompleted": false
+      },
+      {
+        "id": "sch_303",
+        "petId": "pet_101",
+        "petName": "Kyubi",
+        "title": "Evening Walk & Training",
+        "category": "Exercise",
+        "scheduledTime": "07:00 PM",
+        "isCompleted": false
+      }
+    ],
+    "healthRecords": [
+      {
+        "id": "hlth_501",
+        "petId": "pet_101",
+        "petName": "Kyubi",
+        "recordType": "Vaccination",
+        "title": "Rabies Booster Shot",
+        "clinicName": "Happy Paws Veterinary Clinic",
+        "administeredDate": "2025-11-15",
+        "nextDueDate": "2026-11-15",
+        "notes": "Annual vaccine administered without adverse reactions."
+      },
+      {
+        "id": "hlth_502",
+        "petId": "pet_102",
+        "petName": "Mallie",
+        "recordType": "Checkup",
+        "title": "Annual Wellness Check",
+        "clinicName": "City Vet Center",
+        "administeredDate": "2026-02-10",
+        "nextDueDate": "2027-02-10",
+        "notes": "Dental check passed. Weight is within normal range."
+      }
+    ]
+  }
+}
