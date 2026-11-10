@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
 import '../controllers/api_controller.dart';
 import '../controllers/firestore_client.dart';
-import '../models/routine_model.dart';
-import '../services/routine_service.dart';
+import '../models/feeding_model.dart';
+import '../services/feeding_service.dart';
 import '../services/user_pets.dart';
+import '../theme/pawpulse_theme.dart';
 
-const Color kTurquoise = Color.fromARGB(255, 37, 214, 199);
+const Color kTurquoise = PawPulseTheme.primaryCyan;
 
-/// Full Routine Schedule page.
+/// Full Feeding Schedule page.
 ///
-/// Displays routine records across all pet profiles with pet filter chips,
-/// pet badges on cards, and pet selection when creating new routines.
-class RoutineSchedulePage extends StatefulWidget {
+/// Displays feeding records across all pet profiles with pet filter chips,
+/// pet badges on cards, and pet selection when creating new feeding schedules.
+
+class FeedingSchedulePage extends StatefulWidget {
   final Datum? initialPet;
   final bool isEmbedded;
   final List<Datum>? allPets;
-
-  const RoutineSchedulePage({
+  const FeedingSchedulePage({
     super.key,
     this.initialPet,
     this.isEmbedded = false,
@@ -26,16 +26,14 @@ class RoutineSchedulePage extends StatefulWidget {
   });
 
   @override
-  State<RoutineSchedulePage> createState() => _RoutineSchedulePageState();
+  State<FeedingSchedulePage> createState() => _FeedingSchedulePageState();
 }
 
-class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
-  final _service = RoutineService();
-
-  List<RoutineRecord> _records = [];
+class _FeedingSchedulePageState extends State<FeedingSchedulePage> {
+  final _service = FeedingService();
+  List<FeedingRecord> _records = [];
   List<Datum> _pets = [];
   String _selectedFilterPetId = 'all';
-
   bool _isLoading = true;
   String _errorMessage = '';
 
@@ -60,14 +58,13 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
         final petsResult = await ApiController().getDataFromAPI();
         _pets = petsResult.data;
       }
-
       final petId = widget.initialPet?.id;
-      List<RoutineRecord> records;
+      List<FeedingRecord> records;
       if (petId != null) {
-        records = await _service.getRoutines(petId);
+        records = await _service.getFeedings(petId);
       } else {
-        final docs = await FirestoreClient.queryByUser(kRoutineCollection);
-        records = docs.map(RoutineRecord.fromFirestoreMap).toList();
+        final docs = await FirestoreClient.queryByUser(kFeedingCollection);
+        records = docs.map(FeedingRecord.fromFirestoreMap).toList();
         records.sort((a, b) {
           final d = a.scheduledDate.compareTo(b.scheduledDate);
           return d != 0 ? d : a.scheduledTime.compareTo(b.scheduledTime);
@@ -87,7 +84,7 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
     }
   }
 
-  List<RoutineRecord> get _displayedRecords {
+  List<FeedingRecord> get _displayedRecords {
     if (widget.initialPet != null || _selectedFilterPetId == 'all') {
       return _records;
     }
@@ -113,38 +110,42 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
 
   // ─── Form ──────────────────────────────────────────────────────────────────
 
-  Future<void> _showForm({RoutineRecord? existing}) async {
+  Future<void> _showForm({FeedingRecord? existing}) async {
     final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
-
+  // Selected pet ID for new or existing record
     String formPetId = existing?.petId ??
         widget.initialPet?.id ??
         (_pets.isNotEmpty ? _pets.first.id : '');
-
-    final nameController =
-        TextEditingController(text: existing?.activityName ?? '');
+    final mealController =
+        TextEditingController(text: existing?.mealName ?? '');
+    final amountController =
+        TextEditingController(text: existing?.amount ?? '');
     final notesController = TextEditingController(text: existing?.notes ?? '');
-
-    String selectedType = existing?.activityType ?? ActivityType.walking;
     String selectedDate =
         existing?.scheduledDate ?? FirestoreClient.todayDateString();
-    String selectedTime = existing?.scheduledTime ?? '09:00';
-
+    String selectedTime = existing?.scheduledTime ?? '08:00';
     final formKey = GlobalKey<FormState>();
     bool isSaving = false;
-
     await showDialog<void>(
       context: context,
       builder: (dialogCtx) {
         return StatefulBuilder(builder: (dialogCtx, setDialogState) {
           return AlertDialog(
             backgroundColor: Colors.white,
-            title: Text(existing == null ? 'Add Routine' : 'Edit Routine'),
+            title: Text(
+              existing == null ? 'Add Feeding' : 'Edit Feeding',
+              style: const TextStyle(
+                color: PawPulseTheme.darkNavy,
+                fontWeight: FontWeight.bold,
+                ),
+              ),
             content: SingleChildScrollView(
               child: Form(
                 key: formKey,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+  // Pet selection dropdown if not fixed to initialPet
                     if (widget.initialPet == null && _pets.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -190,34 +191,13 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                             const Icon(Icons.pets, color: kTurquoise, size: 18),
                             const SizedBox(width: 6),
                             Text(widget.initialPet!.petName,
-                                style: const TextStyle(
+                              style: const TextStyle(
                                     fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: DropdownButtonFormField<String>(
-                        initialValue: selectedType,
-                        decoration: const InputDecoration(
-                          labelText: 'Activity type *',
-                          border: OutlineInputBorder(),
-                          focusedBorder: OutlineInputBorder(
-                            borderSide: BorderSide(color: kTurquoise),
-                          ),
-                        ),
-                        items: ActivityType.all
-                            .map((t) => DropdownMenuItem(
-                                  value: t,
-                                  child: Text(ActivityType.label(t)),
-                                ))
-                            .toList(),
-                        onChanged: (v) {
-                          if (v != null) setDialogState(() => selectedType = v);
-                        },
-                      ),
-                    ),
-                    _field(nameController, 'Activity name *'),
+                    _field(mealController, 'Meal / Food name *'),
+                    _field(amountController, 'Amount (e.g. 1 cup)'),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
                       leading: const Icon(Icons.calendar_today,
@@ -232,8 +212,9 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                           lastDate: DateTime(2030),
                           builder: (ctx, child) => Theme(
                             data: Theme.of(ctx).copyWith(
-                              colorScheme:
-                                  const ColorScheme.light(primary: kTurquoise),
+                              colorScheme: const ColorScheme.light(
+                                primary: kTurquoise,
+                              ),
                             ),
                             child: child!,
                           ),
@@ -254,7 +235,7 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                       onTap: () async {
                         final parts = selectedTime.split(':');
                         final initial = TimeOfDay(
-                          hour: int.tryParse(parts[0]) ?? 9,
+                          hour: int.tryParse(parts[0]) ?? 8,
                           minute: int.tryParse(parts[1]) ?? 0,
                         );
                         final picked = await showTimePicker(
@@ -262,8 +243,9 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                           initialTime: initial,
                           builder: (ctx, child) => Theme(
                             data: Theme.of(ctx).copyWith(
-                              colorScheme:
-                                  const ColorScheme.light(primary: kTurquoise),
+                              colorScheme: const ColorScheme.light(
+                                primary: kTurquoise,
+                              ),
                             ),
                             child: child!,
                           ),
@@ -276,7 +258,8 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                         }
                       },
                     ),
-                    _field(notesController, 'Notes (optional)', required: false),
+                    _field(notesController, 'Notes (optional)',
+                        required: false),
                   ],
                 ),
               ),
@@ -298,25 +281,25 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                         setDialogState(() => isSaving = true);
                         try {
                           if (existing == null) {
-                            final record = RoutineRecord.create(
+                            final record = FeedingRecord.create(
                               petId: formPetId,
                               userId: userId,
-                              activityType: selectedType,
-                              activityName: nameController.text.trim(),
+                              mealName: mealController.text.trim(),
+                              amount: amountController.text.trim(),
                               scheduledDate: selectedDate,
                               scheduledTime: selectedTime,
                               notes: notesController.text.trim(),
                             );
-                            await _service.addRoutine(record);
+                            await _service.addFeeding(record);
                           } else {
                             final updated = existing.copyWith(
-                              activityType: selectedType,
-                              activityName: nameController.text.trim(),
+                              mealName: mealController.text.trim(),
+                              amount: amountController.text.trim(),
                               scheduledDate: selectedDate,
                               scheduledTime: selectedTime,
                               notes: notesController.text.trim(),
                             );
-                            await _service.updateRoutine(updated);
+                            await _service.updateFeeding(updated);
                           }
                           if (!dialogCtx.mounted) return;
                           Navigator.pop(dialogCtx);
@@ -325,8 +308,8 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(existing == null
-                                  ? 'Routine added!'
-                                  : 'Routine updated!'),
+                                  ? 'Feeding added!'
+                                  : 'Feeding updated!'),
                             ),
                           );
                         } catch (e) {
@@ -342,7 +325,9 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Text('Save'),
               ),
@@ -351,17 +336,19 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
         });
       },
     );
-
-    nameController.dispose();
+    mealController.dispose();
+    amountController.dispose();
     notesController.dispose();
   }
 
-  Future<void> _confirmDelete(RoutineRecord record) async {
+  Future<void> _confirmDelete(FeedingRecord record) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Routine?'),
-        content: Text('Delete "${record.activityName}"?'),
+        title: const Text('Delete Feeding?'),
+        content: Text(
+          'Delete "${record.mealName}" scheduled for ${record.scheduledDate} at ${record.scheduledTime}?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -376,26 +363,29 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
     );
     if (confirmed != true || !mounted) return;
     try {
-      await _service.deleteRoutine(record.id);
+      await _service.deleteFeeding(record.id);
       await _load();
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Routine deleted.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Feeding deleted.')),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Delete failed: $e')),
+      );
     }
   }
 
-  Future<void> _toggleComplete(RoutineRecord record) async {
+  Future<void> _toggleComplete(FeedingRecord record) async {
     try {
       await _service.setCompleted(record.id, !record.isCompleted);
       await _load();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Update failed: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Update failed: $e')),
+      );
     }
   }
 
@@ -404,9 +394,8 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
   @override
   Widget build(BuildContext context) {
     final title = widget.initialPet != null
-        ? '${widget.initialPet!.petName} – Routine'
-        : 'Routine Schedule (All Pets)';
-
+        ? '${widget.initialPet!.petName} – Feeding'
+        : 'Feeding Schedule (All Pets)';
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: widget.isEmbedded
@@ -417,16 +406,17 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
               centerTitle: true,
               actions: [
                 IconButton(
-                    tooltip: 'Refresh',
-                    icon: const Icon(Icons.refresh),
-                    onPressed: _load),
+                  tooltip: 'Refresh',
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _load,
+                ),
               ],
             ),
       body: _buildBody(),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showForm(),
         backgroundColor: kTurquoise,
-        tooltip: 'Add Routine',
+        tooltip: 'Add Feeding',
         child: const Icon(Icons.add, color: Colors.white),
       ),
     );
@@ -434,7 +424,9 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
 
   Widget _buildBody() {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: kTurquoise));
+      return const Center(
+        child: CircularProgressIndicator(color: kTurquoise),
+      );
     }
     if (_errorMessage.isNotEmpty) {
       return Center(
@@ -448,19 +440,19 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
               SelectableText(_errorMessage, textAlign: TextAlign.center),
               const SizedBox(height: 12),
               ElevatedButton.icon(
-                  onPressed: _load,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Retry')),
+                onPressed: _load,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
             ],
           ),
         ),
       );
     }
-
     final displayed = _displayedRecords;
-
     return Column(
       children: [
+  // Show pet filter chips when viewing all pets
         if (widget.initialPet == null && _pets.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
@@ -471,12 +463,14 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                   ChoiceChip(
                     label: Text('All Pets (${_records.length})'),
                     selected: _selectedFilterPetId == 'all',
-                    selectedColor: kTurquoise,
+                    selectedColor: PawPulseTheme.primaryCyan,
+                    backgroundColor: PawPulseTheme.white,
+                    side: const BorderSide(color: PawPulseTheme.lightCyan),
                     labelStyle: TextStyle(
                       color: _selectedFilterPetId == 'all'
                           ? Colors.white
                           : Colors.black87,
-                      fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                     ),
                     onSelected: (selected) {
                       if (selected) setState(() => _selectedFilterPetId = 'all');
@@ -498,10 +492,12 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                         ),
                         label: Text('${p.petName} ($count)'),
                         selected: isSel,
-                        selectedColor: kTurquoise,
+                        selectedColor: PawPulseTheme.primaryCyan,
+                    backgroundColor: PawPulseTheme.white,
+                    side: const BorderSide(color: PawPulseTheme.lightCyan),
                         labelStyle: TextStyle(
-                          color: isSel ? Colors.white : Colors.black87,
-                          fontWeight: FontWeight.bold,
+                          color: isSel ? PawPulseTheme.darkNavy : PawPulseTheme.secondaryGray,
+                        fontWeight: FontWeight.bold,
                         ),
                         onSelected: (selected) {
                           if (selected) {
@@ -523,12 +519,17 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: const [
-                        Icon(Icons.directions_walk, size: 64, color: kTurquoise),
+                        Icon(Icons.restaurant, size: 64, color: kTurquoise),
                         SizedBox(height: 16),
-                        Text('No routines found.', style: TextStyle(fontSize: 16)),
+                        Text(
+                          'No feeding schedules found.',
+                          style: TextStyle(fontSize: 16),
+                        ),
                         SizedBox(height: 8),
-                        Text('Tap + to add a routine.',
-                            style: TextStyle(color: Colors.black54)),
+                        Text(
+                          'Tap + to add a feeding schedule.',
+                          style: TextStyle(color: PawPulseTheme.secondaryGray),
+                        ),
                       ],
                     ),
                   ),
@@ -548,37 +549,48 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
     );
   }
 
-  Widget _buildCard(RoutineRecord record) {
+  Widget _buildCard(FeedingRecord record) {
     final petName = _getPetName(record.petId);
-
     return Card(
-      color: Colors.white,
+      color: PawPulseTheme.white,
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: PawPulseTheme.cardRadius),
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: ListTile(
         leading: CircleAvatar(
+          radius: 22,
           backgroundColor: record.isCompleted
-              ? Colors.grey[300]
-              : kTurquoise.withValues(alpha: 0.15),
-          child: Icon(Icons.directions_walk,
-              color: record.isCompleted ? Colors.grey : kTurquoise),
+              ? Colors.grey.shade200
+              : PawPulseTheme.primaryCyan.withValues(alpha: 0.15),
+          child: Icon(
+            record.isCompleted
+                ? Icons.check_circle_rounded
+                : Icons.restaurant_rounded,
+            color: record.isCompleted
+                ? PawPulseTheme.secondaryGray
+                : PawPulseTheme.primaryCyan,
+          ),
         ),
         title: Row(
           children: [
             Expanded(
               child: Text(
-                record.activityName,
+                record.mealName,
                 style: TextStyle(
                   fontWeight: FontWeight.bold,
+                  fontSize: 16,
                   decoration:
                       record.isCompleted ? TextDecoration.lineThrough : null,
-                  color: record.isCompleted ? Colors.black45 : Colors.black87,
+                  color: record.isCompleted
+                      ? PawPulseTheme.secondaryGray
+                      : PawPulseTheme.darkNavy,
                 ),
               ),
             ),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: kTurquoise.withValues(alpha: 0.15),
+                color: PawPulseTheme.primaryCyan.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -586,23 +598,100 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                 style: const TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  color: Color.fromARGB(255, 12, 142, 131),
+                  color: PawPulseTheme.darkNavy,
                 ),
               ),
             ),
           ],
         ),
-        subtitle: Text(
-          '${ActivityType.label(record.activityType)} • ${record.scheduledDate} at ${record.scheduledTime}'
-          '${record.notes.isNotEmpty ? '\nNotes: ${record.notes}' : ''}',
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(
+                  Icons.access_time_rounded,
+                  size: 14,
+                  color: PawPulseTheme.secondaryGray,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${record.scheduledDate} at ${record.scheduledTime}',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: PawPulseTheme.secondaryGray,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: record.isCompleted
+                        ? Colors.green.shade50
+                        : Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: record.isCompleted
+                          ? Colors.green.shade200
+                          : Colors.orange.shade200,
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Text(
+                    record.isCompleted ? 'Completed' : 'Pending',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: record.isCompleted
+                          ? Colors.green.shade700
+                          : Colors.orange.shade800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (record.amount.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.scale_rounded,
+                    size: 13,
+                    color: PawPulseTheme.secondaryGray,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Amount: ${record.amount}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: PawPulseTheme.secondaryGray,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (record.notes.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Notes: ${record.notes}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: PawPulseTheme.secondaryGray,
+                ),
+              ),
+            ],
+          ],
         ),
-        isThreeLine: record.notes.isNotEmpty,
         trailing: PopupMenuButton<String>(
           tooltip: 'Options',
-          onSelected: (v) {
-            if (v == 'complete') _toggleComplete(record);
-            if (v == 'edit') _showForm(existing: record);
-            if (v == 'delete') _confirmDelete(record);
+          onSelected: (value) {
+            if (value == 'complete') _toggleComplete(record);
+            if (value == 'edit') _showForm(existing: record);
+            if (value == 'delete') _confirmDelete(record);
           },
           itemBuilder: (_) => [
             PopupMenuItem(
@@ -610,30 +699,39 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
               child: Row(
                 children: [
                   Icon(
-                      record.isCompleted
-                          ? Icons.undo
-                          : Icons.check_circle_outline,
-                      color: kTurquoise),
+                    record.isCompleted
+                        ? Icons.undo_rounded
+                        : Icons.check_circle_rounded,
+                    color: record.isCompleted
+                        ? Colors.orange
+                        : Colors.green,
+                  ),
                   const SizedBox(width: 8),
-                  Text(record.isCompleted ? 'Mark incomplete' : 'Mark done'),
+                  Text(record.isCompleted
+                      ? 'Mark as Pending'
+                      : 'Mark as Completed'),
                 ],
               ),
             ),
             const PopupMenuItem(
               value: 'edit',
-              child: Row(children: [
-                Icon(Icons.edit, color: Colors.blue),
-                SizedBox(width: 8),
-                Text('Edit'),
-              ]),
+              child: Row(
+                children: [
+                  Icon(Icons.edit_outlined, color: Colors.blue),
+                  SizedBox(width: 8),
+                  Text('Edit'),
+                ],
+              ),
             ),
             const PopupMenuItem(
               value: 'delete',
-              child: Row(children: [
-                Icon(Icons.delete, color: Colors.red),
-                SizedBox(width: 8),
-                Text('Delete'),
-              ]),
+              child: Row(
+                children: [
+                  Icon(Icons.delete_outline, color: Colors.red),
+                  SizedBox(width: 8),
+                  Text('Delete'),
+                ],
+              ),
             ),
           ],
         ),
@@ -641,21 +739,26 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
     );
   }
 
-  Widget _field(TextEditingController c, String label,
-      {bool required = true}) {
+  Widget _field(
+    TextEditingController controller,
+    String label, {
+    bool required = true,
+  }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
-        controller: c,
+        controller: controller,
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
           focusedBorder: const OutlineInputBorder(
-              borderSide: BorderSide(color: kTurquoise)),
+            borderSide: BorderSide(color: kTurquoise),
+          ),
         ),
         validator: required
-            ? (v) =>
-                (v == null || v.trim().isEmpty) ? 'This field is required' : null
+            ? (v) => (v == null || v.trim().isEmpty)
+                ? 'This field is required'
+                : null
             : null,
       ),
     );

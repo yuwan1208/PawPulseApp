@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -69,6 +68,7 @@ class ApiController {
           'gender': _readValue(fields['gender']) ?? '',
           'avatarUrl': _readValue(fields['avatarUrl']) ?? '',
           'isFriendly': _readValue(fields['isFriendly']) ?? false,
+          'isVaccinated': _readValue(fields['isVaccinated']) ?? false,
         };
       }).toList();
 

@@ -42,25 +42,26 @@ class HealthRecordType {
 
 /// Represents a single health event in the Firestore health_records collection.
 ///
-/// Health records are historical — they capture what happened in the past.
-/// They are NOT automatically turned into upcoming reminders.
-/// The user decides to record an event; the app stores it as written.
+/// Health records capture veterinary appointments, vaccination schedules,
+/// checkups, and treatments. Each record has a completion status (isCompleted)
+/// so that pending and completed health events can be tracked consistently.
 ///
 /// Fields:
 ///   petId, userId, recordDate (YYYY-MM-DD), recordType,
 ///   vetName (optional), description, treatmentDetails (optional),
-///   vaccinationDetails (optional), notes, createdAt, updatedAt
+///   vaccinationDetails (optional), notes, isCompleted, createdAt, updatedAt
 class HealthRecord {
   final String id;
   final String petId;
   final String userId;
-  final String recordDate;         // YYYY-MM-DD — the date the event occurred
+  final String recordDate;         // YYYY-MM-DD — the date the event occurred or is scheduled
   final String recordType;         // vet_visit | vaccination | checkup | illness | treatment | other
   final String vetName;            // Optional clinic or vet name
-  final String description;        // Summary of what happened
+  final String description;        // Summary of what happened or is scheduled
   final String treatmentDetails;   // Optional — what treatment was given
   final String vaccinationDetails; // Optional — vaccine name, batch, etc.
   final String notes;
+  final bool isCompleted;          // True when completed/attended, false when pending
   final String createdAt;
   final String updatedAt;
 
@@ -75,6 +76,7 @@ class HealthRecord {
     required this.treatmentDetails,
     required this.vaccinationDetails,
     required this.notes,
+    this.isCompleted = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -90,6 +92,7 @@ class HealthRecord {
     String treatmentDetails = '',
     String vaccinationDetails = '',
     String notes = '',
+    bool isCompleted = false,
   }) {
     final now = FirestoreClient.nowTimestamp();
     return HealthRecord(
@@ -103,6 +106,7 @@ class HealthRecord {
       treatmentDetails: treatmentDetails,
       vaccinationDetails: vaccinationDetails,
       notes: notes,
+      isCompleted: isCompleted,
       createdAt: now,
       updatedAt: now,
     );
@@ -121,6 +125,7 @@ class HealthRecord {
       treatmentDetails: map['treatmentDetails'] as String? ?? '',
       vaccinationDetails: map['vaccinationDetails'] as String? ?? '',
       notes: map['notes'] as String? ?? '',
+      isCompleted: map['isCompleted'] as bool? ?? false,
       createdAt: map['createdAt'] as String? ?? '',
       updatedAt: map['updatedAt'] as String? ?? '',
     );
@@ -138,6 +143,7 @@ class HealthRecord {
       'treatmentDetails': treatmentDetails,
       'vaccinationDetails': vaccinationDetails,
       'notes': notes,
+      'isCompleted': isCompleted,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     });
@@ -152,6 +158,7 @@ class HealthRecord {
     String? treatmentDetails,
     String? vaccinationDetails,
     String? notes,
+    bool? isCompleted,
   }) {
     return HealthRecord(
       id: id,
@@ -164,9 +171,9 @@ class HealthRecord {
       treatmentDetails: treatmentDetails ?? this.treatmentDetails,
       vaccinationDetails: vaccinationDetails ?? this.vaccinationDetails,
       notes: notes ?? this.notes,
+      isCompleted: isCompleted ?? this.isCompleted,
       createdAt: createdAt,
       updatedAt: FirestoreClient.nowTimestamp(),
     );
   }
 }
-

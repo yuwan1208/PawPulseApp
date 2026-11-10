@@ -3,8 +3,8 @@ import '../models/health_record_model.dart';
 
 /// Handles all Firestore operations for health history records.
 ///
-/// Health records are historical. They are stored exactly as the user enters them.
-/// Old records are NOT automatically converted into upcoming reminders.
+/// Health records capture appointments, vaccinations, checkups, and treatments.
+/// Status can be marked completed or pending for consistent tracking.
 class HealthService {
   /// Retrieves all health records for a specific pet, sorted newest-first.
   Future<List<HealthRecord>> getHealthRecords(String petId) async {
@@ -23,8 +23,7 @@ class HealthService {
 
   /// Returns health records for the given pet that are scheduled for today.
   ///
-  /// This is used in the pet overview to highlight any events recorded today.
-  /// It does not generate reminders from historical records.
+  /// This is used in the pet overview to highlight any events scheduled or recorded today.
   Future<List<HealthRecord>> getTodayHealthRecords(String petId) async {
     final today = FirestoreClient.todayDateString();
     final all = await getHealthRecords(petId);
@@ -50,6 +49,20 @@ class HealthService {
     );
   }
 
+  /// Marks a specific health record as completed or pending.
+  ///
+  /// Only isCompleted and updatedAt are changed. Other fields remain untouched.
+  Future<void> setCompleted(String docId, bool isCompleted) async {
+    await FirestoreClient.updateFields(
+      collection: kHealthCollection,
+      documentId: docId,
+      firestoreFields: FirestoreClient.encodeFields({
+        'isCompleted': isCompleted,
+        'updatedAt': FirestoreClient.nowTimestamp(),
+      }),
+    );
+  }
+
   /// Permanently deletes a health record from Firestore.
   Future<void> deleteHealthRecord(String docId) async {
     await FirestoreClient.deleteDocument(
@@ -58,4 +71,3 @@ class HealthService {
     );
   }
 }
-

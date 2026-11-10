@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import '../theme/pawpulse_theme.dart';
 import '../models/feeding_model.dart';
 import '../models/health_record_model.dart';
 import '../models/medicine_model.dart';
@@ -14,12 +14,13 @@ import 'health_history_page.dart';
 import 'medicine_schedule_page.dart';
 import 'routine_schedule_page.dart';
 
-const Color kTurquoise = Color.fromARGB(255, 37, 214, 199);
+const Color kTurquoise = PawPulseTheme.primaryCyan;
 
 /// Shows an individual pet's daily overview:
-///   - Pet profile (photo, name, species, breed, age, weight, gender)
-///   - Today's scheduled feedings, routines, medicines, and health records
-///   - A progress bar showing how many tasks are done today
+/// - Pet profile (photo, name, species, breed, age, weight, gender)
+/// - Today's scheduled feedings, routines, medicines, and health records
+/// - Standardized Pending vs Completed/Given status badges
+/// - A progress bar showing how many tasks are done today
 ///
 /// This page does NOT mix data from other pets. Every record is filtered
 /// by the selected pet's document ID before being displayed.
@@ -33,7 +34,7 @@ class PetDetailsPage extends StatefulWidget {
 }
 
 class _PetDetailsPageState extends State<PetDetailsPage> {
-  // Services — each one handles exactly one feature's Firestore operations.
+  // Services
   final _feedingService = FeedingService();
   final _routineService = RoutineService();
   final _medicineService = MedicineService();
@@ -54,11 +55,12 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     _loadTodayData();
   }
 
-  // ─── Data loading ──────────────────────────────────────────────────────────
+  // ─── Data loading ─────────────────────────────────────────────────
 
   /// Loads all of today's tasks for this pet in parallel for speed.
   Future<void> _loadTodayData() async {
     if (!mounted) return;
+
     setState(() {
       _isLoading = true;
       _errorMessage = '';
@@ -73,6 +75,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       ]);
 
       if (!mounted) return;
+
       setState(() {
         _todayFeedings = results[0] as List<FeedingRecord>;
         _todayRoutines = results[1] as List<RoutineRecord>;
@@ -82,6 +85,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       });
     } catch (e) {
       if (!mounted) return;
+
       setState(() {
         _errorMessage = e.toString();
         _isLoading = false;
@@ -89,7 +93,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     }
   }
 
-  // ─── Progress helpers ──────────────────────────────────────────────────────
+  // ─── Progress helpers ────────────────────────────────────────────
 
   int get _totalTasks =>
       _todayFeedings.length +
@@ -101,21 +105,24 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     final doneFeed = _todayFeedings.where((f) => f.isCompleted).length;
     final doneRoutine = _todayRoutines.where((r) => r.isCompleted).length;
     final doneMed = _todayMedicines.where((m) => m.isAdministered).length;
-    // Health records do not have a completion status — count them as "done."
-    return doneFeed + doneRoutine + doneMed + _todayHealth.length;
+    final doneHealth = _todayHealth.where((h) => h.isCompleted).length;
+
+    return doneFeed + doneRoutine + doneMed + doneHealth;
   }
 
-  // ─── Pet image helper ──────────────────────────────────────────────────────
+  // ─── Pet image helper ────────────────────────────────────────────
 
   ImageProvider? _getPetImage(String imagePath) {
     if (imagePath.isEmpty) return null;
+
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return NetworkImage(imagePath);
     }
+
     return AssetImage(imagePath);
   }
 
-  // ─── Completion toggles ────────────────────────────────────────────────────
+  // ─── Completion toggles ──────────────────────────────────────────
 
   Future<void> _toggleFeeding(FeedingRecord record) async {
     try {
@@ -123,9 +130,10 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       await _loadTodayData();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update feeding: $e')),
-      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not update feeding: $e')));
     }
   }
 
@@ -135,9 +143,10 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       await _loadTodayData();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update routine: $e')),
-      );
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not update routine: $e')));
     }
   }
 
@@ -147,13 +156,55 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       await _loadTodayData();
     } catch (e) {
       if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Could not update medicine: $e')));
+    }
+  }
+
+  Future<void> _toggleHealth(HealthRecord record) async {
+    try {
+      await _healthService.setCompleted(record.id, !record.isCompleted);
+      await _loadTodayData();
+    } catch (e) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not update medicine: $e')),
+        SnackBar(content: Text('Could not update health event: $e')),
       );
     }
   }
 
-  // ─── Build ─────────────────────────────────────────────────────────────────
+  // ─── Status Badge Widget ─────────────────────────────────────────
+
+  Widget _statusBadge({
+    required bool isCompleted,
+    required String completedText,
+    required String pendingText,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: isCompleted ? Colors.green.shade50 : Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(
+          color: isCompleted ? Colors.green.shade200 : Colors.orange.shade200,
+          width: 0.8,
+        ),
+      ),
+      child: Text(
+        isCompleted ? completedText : pendingText,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          color: isCompleted ? Colors.green.shade700 : Colors.orange.shade800,
+        ),
+      ),
+    );
+  }
+
+  // ─── Build ────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -161,10 +212,23 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     final petImage = _getPetImage(pet.petImage);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: PawPulseTheme.background,
       appBar: AppBar(
-        backgroundColor: kTurquoise,
-        title: Text(pet.petName),
+        backgroundColor: Colors.transparent,
+        foregroundColor: PawPulseTheme.darkNavy,
+        elevation: 0,
+        flexibleSpace: const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: PawPulseTheme.headerGradient,
+          ),
+        ),
+        title: Text(
+          pet.petName,
+          style: const TextStyle(
+            color: PawPulseTheme.darkNavy,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         centerTitle: true,
         actions: [
           IconButton(
@@ -202,12 +266,14 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     );
   }
 
-  // ─── Profile card ──────────────────────────────────────────────────────────
+  // ─── Profile card ─────────────────────────────────────────────────
 
   Widget _buildProfileCard(Datum pet, ImageProvider? petImage) {
     return Card(
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: PawPulseTheme.cardRadius),
+      elevation: 2,
+      shadowColor: PawPulseTheme.darkNavy.withValues(alpha: 0.07),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -254,15 +320,13 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
         children: [
           Icon(icon, size: 14, color: kTurquoise),
           const SizedBox(width: 6),
-          Expanded(
-            child: Text(text, style: const TextStyle(fontSize: 13)),
-          ),
+          Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
         ],
       ),
     );
   }
 
-  // ─── Progress card ─────────────────────────────────────────────────────────
+  // ─── Progress card ────────────────────────────────────────────────
 
   Widget _buildProgressCard() {
     final total = _totalTasks;
@@ -272,7 +336,9 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
 
     return Card(
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: PawPulseTheme.cardRadius),
+      elevation: 2,
+      shadowColor: PawPulseTheme.darkNavy.withValues(alpha: 0.07),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -288,7 +354,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
               child: LinearProgressIndicator(
                 value: progress,
                 minHeight: 12,
-                backgroundColor: Colors.grey[200],
+                backgroundColor: PawPulseTheme.lightCyan,
                 color: kTurquoise,
               ),
             ),
@@ -315,7 +381,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     );
   }
 
-  // ─── Error card ────────────────────────────────────────────────────────────
+  // ─── Error card ───────────────────────────────────────────────────
 
   Widget _buildErrorCard() {
     return Card(
@@ -326,7 +392,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
           children: [
             const Icon(Icons.cloud_off, size: 40, color: Colors.red),
             const SizedBox(height: 8),
-            const Text('Could not load today\'s tasks.'),
+            const Text("Could not load today's tasks."),
             const SizedBox(height: 4),
             SelectableText(
               _errorMessage,
@@ -346,7 +412,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     );
   }
 
-  // ─── Today's section ───────────────────────────────────────────────────────
+  // ─── Today's section ──────────────────────────────────────────────
 
   Widget _buildTodaySection(Datum pet) {
     return Column(
@@ -369,7 +435,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     );
   }
 
-  // ─── Feeding section ───────────────────────────────────────────────────────
+  // ─── Feeding section ──────────────────────────────────────────────
 
   Widget _buildFeedingSection(Datum pet) {
     return _sectionCard(
@@ -386,11 +452,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       },
       child: _todayFeedings.isEmpty
           ? _emptyState('No feedings scheduled for today.')
-          : Column(
-              children: _todayFeedings
-                  .map((f) => _feedingTile(f))
-                  .toList(),
-            ),
+          : Column(children: _todayFeedings.map(_feedingTile).toList()),
     );
   }
 
@@ -399,15 +461,28 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       activeColor: kTurquoise,
       value: f.isCompleted,
       onChanged: (_) => _toggleFeeding(f),
-      title: Text(
-        f.mealName,
-        style: TextStyle(
-          decoration: f.isCompleted ? TextDecoration.lineThrough : null,
-          color: f.isCompleted ? Colors.black45 : Colors.black87,
-        ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              f.mealName,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                decoration: f.isCompleted ? TextDecoration.lineThrough : null,
+                color: f.isCompleted ? Colors.black45 : Colors.black87,
+              ),
+            ),
+          ),
+          _statusBadge(
+            isCompleted: f.isCompleted,
+            completedText: 'Completed',
+            pendingText: 'Pending',
+          ),
+        ],
       ),
       subtitle: Text(
-        '${f.scheduledTime}${f.amount.isNotEmpty ? ' • ${f.amount}' : ''}',
+        '${f.scheduledTime}${f.amount.isNotEmpty ? ' • ${f.amount}' : ''}'
+        '${f.notes.isNotEmpty ? '\n${f.notes}' : ''}',
         style: const TextStyle(fontSize: 12),
       ),
       secondary: Icon(
@@ -418,7 +493,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     );
   }
 
-  // ─── Routine section ───────────────────────────────────────────────────────
+  // ─── Routine section ──────────────────────────────────────────────
 
   Widget _buildRoutineSection(Datum pet) {
     return _sectionCard(
@@ -435,11 +510,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       },
       child: _todayRoutines.isEmpty
           ? _emptyState('No routines scheduled for today.')
-          : Column(
-              children: _todayRoutines
-                  .map((r) => _routineTile(r))
-                  .toList(),
-            ),
+          : Column(children: _todayRoutines.map(_routineTile).toList()),
     );
   }
 
@@ -448,15 +519,28 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       activeColor: kTurquoise,
       value: r.isCompleted,
       onChanged: (_) => _toggleRoutine(r),
-      title: Text(
-        r.activityName,
-        style: TextStyle(
-          decoration: r.isCompleted ? TextDecoration.lineThrough : null,
-          color: r.isCompleted ? Colors.black45 : Colors.black87,
-        ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              r.activityName,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                decoration: r.isCompleted ? TextDecoration.lineThrough : null,
+                color: r.isCompleted ? Colors.black45 : Colors.black87,
+              ),
+            ),
+          ),
+          _statusBadge(
+            isCompleted: r.isCompleted,
+            completedText: 'Completed',
+            pendingText: 'Pending',
+          ),
+        ],
       ),
       subtitle: Text(
-        '${r.scheduledTime} • ${ActivityType.label(r.activityType)}',
+        '${r.scheduledTime} • ${ActivityType.label(r.activityType)}'
+        '${r.notes.isNotEmpty ? '\n${r.notes}' : ''}',
         style: const TextStyle(fontSize: 12),
       ),
       secondary: Icon(
@@ -467,7 +551,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     );
   }
 
-  // ─── Medicine section ──────────────────────────────────────────────────────
+  // ─── Medicine section ─────────────────────────────────────────────
 
   Widget _buildMedicineSection(Datum pet) {
     return _sectionCard(
@@ -484,11 +568,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       },
       child: _todayMedicines.isEmpty
           ? _emptyState('No medicines scheduled for today.')
-          : Column(
-              children: _todayMedicines
-                  .map((m) => _medicineTile(m))
-                  .toList(),
-            ),
+          : Column(children: _todayMedicines.map(_medicineTile).toList()),
     );
   }
 
@@ -497,15 +577,28 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       activeColor: kTurquoise,
       value: m.isAdministered,
       onChanged: (_) => _toggleMedicine(m),
-      title: Text(
-        m.medicineName,
-        style: TextStyle(
-          decoration: m.isAdministered ? TextDecoration.lineThrough : null,
-          color: m.isAdministered ? Colors.black45 : Colors.black87,
-        ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              m.medicineName,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                decoration: m.isAdministered ? TextDecoration.lineThrough : null,
+                color: m.isAdministered ? Colors.black45 : Colors.black87,
+              ),
+            ),
+          ),
+          _statusBadge(
+            isCompleted: m.isAdministered,
+            completedText: 'Given',
+            pendingText: 'Pending',
+          ),
+        ],
       ),
       subtitle: Text(
-        '${m.scheduledTime}${m.dosage.isNotEmpty ? ' • ${m.dosage}' : ''}',
+        '${m.scheduledTime}${m.dosage.isNotEmpty ? ' • ${m.dosage}' : ''}'
+        '${m.instructions.isNotEmpty ? '\n${m.instructions}' : ''}',
         style: const TextStyle(fontSize: 12),
       ),
       secondary: Icon(
@@ -516,7 +609,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     );
   }
 
-  // ─── Health section ────────────────────────────────────────────────────────
+  // ─── Health section ───────────────────────────────────────────────
 
   Widget _buildHealthSection(Datum pet) {
     return _sectionCard(
@@ -525,35 +618,58 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
       onAdd: () async {
         await Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => HealthHistoryPage(initialPet: pet),
-          ),
+          MaterialPageRoute(builder: (_) => HealthHistoryPage(initialPet: pet)),
         );
         await _loadTodayData();
       },
       child: _todayHealth.isEmpty
           ? _emptyState('No health events recorded for today.')
-          : Column(
-              children: _todayHealth
-                  .map((h) => _healthTile(h))
-                  .toList(),
-            ),
+          : Column(children: _todayHealth.map(_healthTile).toList()),
     );
   }
 
   Widget _healthTile(HealthRecord h) {
-    return ListTile(
-      leading: const Icon(Icons.favorite, color: kTurquoise),
-      title: Text(h.description.isNotEmpty ? h.description : HealthRecordType.label(h.recordType)),
+    return CheckboxListTile(
+      activeColor: kTurquoise,
+      value: h.isCompleted,
+      onChanged: (_) => _toggleHealth(h),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              h.description.isNotEmpty
+                  ? h.description
+                  : HealthRecordType.label(h.recordType),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                decoration: h.isCompleted ? TextDecoration.lineThrough : null,
+                color: h.isCompleted ? Colors.black45 : Colors.black87,
+              ),
+            ),
+          ),
+          _statusBadge(
+            isCompleted: h.isCompleted,
+            completedText: 'Completed',
+            pendingText: 'Pending',
+          ),
+        ],
+      ),
       subtitle: Text(
         '${HealthRecordType.label(h.recordType)}'
-        '${h.vetName.isNotEmpty ? ' • ${h.vetName}' : ''}',
+        '${h.vetName.isNotEmpty ? ' • ${h.vetName}' : ''}'
+        '${h.vaccinationDetails.isNotEmpty ? '\nVaccine: ${h.vaccinationDetails}' : ''}'
+        '${h.treatmentDetails.isNotEmpty ? '\nTreatment: ${h.treatmentDetails}' : ''}',
         style: const TextStyle(fontSize: 12),
       ),
+      secondary: Icon(
+        h.isCompleted ? Icons.check_circle : Icons.radio_button_unchecked,
+        color: h.isCompleted ? kTurquoise : Colors.grey,
+      ),
+      controlAffinity: ListTileControlAffinity.leading,
     );
   }
 
-  // ─── Shared section card ───────────────────────────────────────────────────
+  // ─── Shared section card ──────────────────────────────────────────
 
   Widget _sectionCard({
     required IconData icon,
@@ -563,7 +679,9 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
   }) {
     return Card(
       color: Colors.white,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: PawPulseTheme.cardRadius),
+      elevation: 2,
+      shadowColor: PawPulseTheme.darkNavy.withValues(alpha: 0.07),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
         child: Column(
@@ -610,4 +728,3 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
     );
   }
 }
-
