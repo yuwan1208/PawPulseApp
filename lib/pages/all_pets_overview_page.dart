@@ -8,6 +8,7 @@ import '../models/medicine_model.dart';
 import '../models/routine_model.dart';
 import '../services/feeding_service.dart';
 import '../services/health_service.dart';
+import '../services/local_pet_image_service.dart';
 import '../services/medicine_service.dart';
 import '../services/routine_service.dart';
 import '../services/user_pets.dart';
@@ -174,14 +175,11 @@ class _AllPetsOverviewPageState extends State<AllPetsOverviewPage> {
     return pet?.petName ?? 'Pet';
   }
 
-  ImageProvider? _getPetImage(String? imagePath) {
-    if (imagePath == null || imagePath.isEmpty) return null;
-
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return NetworkImage(imagePath);
-    }
-
-    return AssetImage(imagePath);
+  ImageProvider? _getPetImage(String? imagePath, {String? petId}) {
+    return LocalPetImageService().getPetImageProvider(
+      petId: petId,
+      fallbackUrl: imagePath,
+    );
   }
 
   // ─── Toggles ───────────────────────────────────────────────────────────────
@@ -238,7 +236,7 @@ class _AllPetsOverviewPageState extends State<AllPetsOverviewPage> {
 
   Widget _petBadge(Datum? pet) {
     final name = pet?.petName ?? 'Pet';
-    final img = _getPetImage(pet?.petImage);
+    final img = _getPetImage(pet?.petImage, petId: pet?.id);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -381,12 +379,13 @@ class _AllPetsOverviewPageState extends State<AllPetsOverviewPage> {
           const SizedBox(width: 8),
           ..._pets.map((pet) {
             final isSelected = _selectedPetId == pet.id;
+            final img = _getPetImage(pet.petImage, petId: pet.id);
             return Padding(
               padding: const EdgeInsets.only(right: 8),
               child: ChoiceChip(
                 avatar: CircleAvatar(
-                  backgroundImage: _getPetImage(pet.petImage),
-                  child: pet.petImage.isEmpty
+                  backgroundImage: img,
+                  child: img == null
                       ? const Icon(Icons.pets, size: 14)
                       : null,
                 ),

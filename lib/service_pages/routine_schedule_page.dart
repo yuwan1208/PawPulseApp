@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../controllers/api_controller.dart';
 import '../controllers/firestore_client.dart';
 import '../models/routine_model.dart';
+import '../services/local_pet_image_service.dart';
 import '../services/routine_service.dart';
 import '../services/user_pets.dart';
 import '../theme/pawpulse_theme.dart';
@@ -95,12 +96,11 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
     return 'Pet';
   }
 
-  ImageProvider? _getPetImage(String? imagePath) {
-    if (imagePath == null || imagePath.isEmpty) return null;
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return NetworkImage(imagePath);
-    }
-    return AssetImage(imagePath);
+  ImageProvider? _getPetImage(String? imagePath, {String? petId}) {
+    return LocalPetImageService().getPetImageProvider(
+      petId: petId,
+      fallbackUrl: imagePath,
+    );
   }
 
   // ─── Form ──────────────────────────────────────────────────────────────────
@@ -153,16 +153,15 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                                 : _pets.first.id,
                             decoration: _inputDecoration('Assign to Pet *'),
                             items: _pets.map((pet) {
+                              final img = _getPetImage(pet.petImage, petId: pet.id);
                               return DropdownMenuItem(
                                 value: pet.id,
                                 child: Row(
                                   children: [
                                     CircleAvatar(
                                       radius: 12,
-                                      backgroundImage: _getPetImage(
-                                        pet.petImage,
-                                      ),
-                                      child: pet.petImage.isEmpty
+                                      backgroundImage: img,
+                                      child: img == null
                                           ? const Icon(Icons.pets, size: 12)
                                           : null,
                                     ),
@@ -545,12 +544,13 @@ class _RoutineSchedulePageState extends State<RoutineSchedulePage> {
                   ..._pets.map((p) {
                     final count = _records.where((r) => r.petId == p.id).length;
                     final isSel = _selectedFilterPetId == p.id;
+                    final img = _getPetImage(p.petImage, petId: p.id);
                     return Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: ChoiceChip(
                         avatar: CircleAvatar(
-                          backgroundImage: _getPetImage(p.petImage),
-                          child: p.petImage.isEmpty
+                          backgroundImage: img,
+                          child: img == null
                               ? const Icon(Icons.pets, size: 14)
                               : null,
                         ),

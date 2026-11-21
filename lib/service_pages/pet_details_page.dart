@@ -6,6 +6,7 @@ import '../models/medicine_model.dart';
 import '../models/routine_model.dart';
 import '../services/feeding_service.dart';
 import '../services/health_service.dart';
+import '../services/local_pet_image_service.dart';
 import '../services/medicine_service.dart';
 import '../services/routine_service.dart';
 import '../services/user_pets.dart';
@@ -112,14 +113,11 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
 
   // ─── Pet image helper ────────────────────────────────────────────
 
-  ImageProvider? _getPetImage(String imagePath) {
-    if (imagePath.isEmpty) return null;
-
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return NetworkImage(imagePath);
-    }
-
-    return AssetImage(imagePath);
+  ImageProvider? _getPetImage(String imagePath, {String? petId}) {
+    return LocalPetImageService().getPetImageProvider(
+      petId: petId,
+      fallbackUrl: imagePath,
+    );
   }
 
   // ─── Completion toggles ──────────────────────────────────────────
@@ -209,7 +207,7 @@ class _PetDetailsPageState extends State<PetDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final pet = widget.pet;
-    final petImage = _getPetImage(pet.petImage);
+    final petImage = _getPetImage(pet.petImage, petId: pet.id);
 
     return Scaffold(
       backgroundColor: PawPulseTheme.background,

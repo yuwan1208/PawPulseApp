@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
 import '../controllers/api_controller.dart';
+import '../services/local_pet_image_service.dart';
 import '../services/user_pets.dart';
 import '../theme/pawpulse_theme.dart';
 import 'all_pets_overview_page.dart';
@@ -215,66 +218,245 @@ class _HomePageState extends State<HomePage> {
     final weightController = TextEditingController(text: cleanWeight);
     final genderController = TextEditingController(text: pet?.gender ?? '');
 
+    Uint8List? selectedImageBytes;
+    String selectedImageExt = '.jpg';
+    bool imageRemoved = false;
+    final Uint8List? existingLocalImageBytes =
+        pet != null ? LocalPetImageService().getPetImageBytesSync(pet.id) : null;
+
     try {
       final result = await showDialog<Map<String, dynamic>>(
         context: context,
         builder: (dialogContext) {
-          return AlertDialog(
-            backgroundColor: Colors.white,
-            title: Text(pet == null ? 'Add Pet' : 'Edit Pet'),
-            content: SingleChildScrollView(
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _petInput(nameController, 'Pet Name'),
-                    _petInput(speciesController, 'Species'),
-                    _petInput(breedController, 'Breed'),
-                    _petInput(ageController, 'Age in years', number: true),
-                    _petInput(weightController, 'Weight in kg', number: true),
-                    _petInput(genderController, 'Gender'),
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: PawPulseTheme.primaryCyan,
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () {
-                  if (!formKey.currentState!.validate()) return;
+          return StatefulBuilder(
+            builder: (dialogContext, setDialogState) {
+              ImageProvider? previewProvider;
+              if (selectedImageBytes != null) {
+                previewProvider = MemoryImage(selectedImageBytes!);
+              } else if (!imageRemoved && existingLocalImageBytes != null) {
+                previewProvider = MemoryImage(existingLocalImageBytes);
+              } else if (!imageRemoved &&
+                  pet != null &&
+                  pet.petImage.isNotEmpty) {
+                if (pet.petImage.startsWith('http://') ||
+                    pet.petImage.startsWith('https://')) {
+                  previewProvider = NetworkImage(pet.petImage);
+                } else {
+                  previewProvider = AssetImage(pet.petImage);
+                }
+              }
 
-                  final age = int.tryParse(ageController.text.trim());
-                  final weight = double.tryParse(weightController.text.trim());
+              final bool hasActiveImage = previewProvider != null;
 
-                  if (age == null || weight == null || age < 0 || weight < 0) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      const SnackBar(
-                        content: Text('Enter a valid age and weight.'),
+              return AlertDialog(
+                backgroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: PawPulseTheme.cardRadius,
+                ),
+                title: Text(
+                  pet == null ? 'Add Pet' : 'Edit Pet',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                content: SingleChildScrollView(
+                  child: Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Pet picture preview & picker controls
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 16),
+                          child: Center(
+                            child: Column(
+                              children: [
+                                Stack(
+                                  alignment: Alignment.topRight,
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 46,
+                                      backgroundColor: PawPulseTheme.lightCyan,
+                                      backgroundImage: previewProvider,
+                                      child: !hasActiveImage
+                                          ? const Icon(
+                                              Icons.pets,
+                                              size: 44,
+                                              color: PawPulseTheme.darkNavy,
+                                            )
+                                          : null,
+                                    ),
+                                    if (hasActiveImage)
+                                      Positioned(
+                                        top: 0,
+                                        right: 0,
+                                        child: InkWell(
+                                          onTap: () {
+                                            setDialogState(() {
+                                              selectedImageBytes = null;
+                                              imageRemoved = true;
+                                            });
+                                          },
+                                          child: Container(
+                                            padding: const EdgeInsets.all(4),
+                                            decoration: const BoxDecoration(
+                                              color: Colors.red,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.close,
+                                              size: 14,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      onPressed: () async {
+                                        try {
+                                          final picker = ImagePicker();
+                                          final picked = await picker.pickImage(
+                                            source: ImageSource.gallery,
+                                            maxWidth: 1024,
+                                            maxHeight: 1024,
+                                            imageQuality: 85,
+                                          );
+                                          if (picked != null) {
+                                            final bytes =
+                                                await picked.readAsBytes();
+                                            String ext = '.jpg';
+                                            final name = picked.name;
+                                            final dotIdx = name.lastIndexOf('.');
+                                            if (dotIdx != -1) {
+                                              ext = name
+                                                  .substring(dotIdx)
+                                                  .toLowerCase();
+                                            }
+                                            setDialogState(() {
+                                              selectedImageBytes = bytes;
+                                              selectedImageExt = ext;
+                                              imageRemoved = false;
+                                            });
+                                          }
+                                        } catch (e) {
+                                          if (dialogContext.mounted) {
+                                            ScaffoldMessenger.of(dialogContext)
+                                                .showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                    'Could not pick photo: $e'),
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      },
+                                      icon: const Icon(
+                                          Icons.photo_library_outlined,
+                                          size: 16),
+                                      label: Text(hasActiveImage
+                                          ? 'Change Photo'
+                                          : 'Choose Photo'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor:
+                                            PawPulseTheme.darkNavy,
+                                        side: const BorderSide(
+                                            color: PawPulseTheme.primaryCyan),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                    ),
+                                    if (hasActiveImage) ...[
+                                      const SizedBox(width: 8),
+                                      TextButton.icon(
+                                        onPressed: () {
+                                          setDialogState(() {
+                                            selectedImageBytes = null;
+                                            imageRemoved = true;
+                                          });
+                                        },
+                                        icon: const Icon(Icons.delete_outline,
+                                            size: 16, color: Colors.red),
+                                        label: const Text(
+                                          'Remove',
+                                          style: TextStyle(
+                                            color: Colors.red,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        _petInput(nameController, 'Pet Name'),
+                        _petInput(speciesController, 'Species'),
+                        _petInput(breedController, 'Breed'),
+                        _petInput(ageController, 'Age in years', number: true),
+                        _petInput(
+                            weightController, 'Weight in kg', number: true),
+                        _petInput(genderController, 'Gender'),
+                      ],
+                    ),
+                  ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Cancel'),
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: PawPulseTheme.primaryCyan,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: PawPulseTheme.buttonRadius,
                       ),
-                    );
-                    return;
-                  }
+                    ),
+                    onPressed: () {
+                      if (!formKey.currentState!.validate()) return;
 
-                  Navigator.pop(dialogContext, {
-                    'name': nameController.text.trim(),
-                    'species': speciesController.text.trim(),
-                    'breed': breedController.text.trim(),
-                    'age': age,
-                    'weight': weight,
-                    'gender': genderController.text.trim(),
-                  });
-                },
-                child: const Text('Save'),
-              ),
-            ],
+                      final age = int.tryParse(ageController.text.trim());
+                      final weight =
+                          double.tryParse(weightController.text.trim());
+
+                      if (age == null ||
+                          weight == null ||
+                          age < 0 ||
+                          weight < 0) {
+                        ScaffoldMessenger.of(dialogContext).showSnackBar(
+                          const SnackBar(
+                            content: Text('Enter a valid age and weight.'),
+                          ),
+                        );
+                        return;
+                      }
+
+                      Navigator.pop(dialogContext, {
+                        'name': nameController.text.trim(),
+                        'species': speciesController.text.trim(),
+                        'breed': breedController.text.trim(),
+                        'age': age,
+                        'weight': weight,
+                        'gender': genderController.text.trim(),
+                        'selectedImageBytes': selectedImageBytes,
+                        'selectedImageExt': selectedImageExt,
+                        'imageRemoved': imageRemoved,
+                      });
+                    },
+                    child: const Text('Save'),
+                  ),
+                ],
+              );
+            },
           );
         },
       );
@@ -283,7 +465,7 @@ class _HomePageState extends State<HomePage> {
 
       if (pet == null) {
         // POST: Create a new pet.
-        await _apiController.addPet(
+        final newPetId = await _apiController.addPet(
           name: result['name'] as String,
           species: result['species'] as String,
           breed: result['breed'] as String,
@@ -291,6 +473,28 @@ class _HomePageState extends State<HomePage> {
           weightKg: result['weight'] as double,
           gender: result['gender'] as String,
         );
+
+        final Uint8List? newImageBytes =
+            result['selectedImageBytes'] as Uint8List?;
+        final String newImageExt =
+            result['selectedImageExt'] as String? ?? '.jpg';
+        if (newImageBytes != null) {
+          try {
+            await LocalPetImageService().savePetImageBytes(
+              petId: newPetId,
+              bytes: newImageBytes,
+              extension: newImageExt,
+            );
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Pet created, but saving photo failed: $e'),
+                ),
+              );
+            }
+          }
+        }
       } else {
         // PATCH: Update an existing Firestore document.
         await _apiController.updatePet(
@@ -304,9 +508,46 @@ class _HomePageState extends State<HomePage> {
           avatarUrl: pet.petImage,
           isFriendly: pet.isFriendly,
         );
+
+        final Uint8List? newImageBytes =
+            result['selectedImageBytes'] as Uint8List?;
+        final String newImageExt =
+            result['selectedImageExt'] as String? ?? '.jpg';
+        final bool removed = result['imageRemoved'] as bool? ?? false;
+
+        if (newImageBytes != null) {
+          try {
+            await LocalPetImageService().savePetImageBytes(
+              petId: pet.id,
+              bytes: newImageBytes,
+              extension: newImageExt,
+            );
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Pet updated, but saving photo failed: $e'),
+                ),
+              );
+            }
+          }
+        } else if (removed) {
+          try {
+            await LocalPetImageService().deletePetImage(pet.id);
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Could not remove photo: $e'),
+                ),
+              );
+            }
+          }
+        }
       }
 
       await callAPIandAssignData();
+      await _loadTodaySchedules();
 
       if (!mounted) return;
 
@@ -387,7 +628,9 @@ class _HomePageState extends State<HomePage> {
 
     try {
       await _apiController.deletePet(pet.id);
+      await LocalPetImageService().deletePetImage(pet.id);
       await callAPIandAssignData();
+      await _loadTodaySchedules();
 
       if (!mounted) return;
 
@@ -403,15 +646,12 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  // Supports local asset images and online image URLs.
-  ImageProvider? _getPetImage(String imagePath) {
-    if (imagePath.isEmpty) return null;
-
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return NetworkImage(imagePath);
-    }
-
-    return AssetImage(imagePath);
+  // Returns local persistent image, or falls back to asset/network URL.
+  ImageProvider? _getPetImage(String imagePath, {String? petId}) {
+    return LocalPetImageService().getPetImageProvider(
+      petId: petId,
+      fallbackUrl: imagePath,
+    );
   }
 
   void _openPetOverview(Datum pet) async {
@@ -446,13 +686,6 @@ class _HomePageState extends State<HomePage> {
               _loadTodaySchedules();
             },
           ),
-          Builder(
-            builder: (context) => IconButton(
-              tooltip: 'Account',
-              icon: const Icon(Icons.account_circle_outlined),
-              onPressed: () => Scaffold.of(context).openEndDrawer(),
-            ),
-          ),
         ],
       ),
 
@@ -469,6 +702,22 @@ class _HomePageState extends State<HomePage> {
                 child: Icon(Icons.pets, size: 30),
               ),
             ),
+            ListTile(
+              leading: const Icon(
+                Icons.settings_outlined,
+                color: PawPulseTheme.primaryCyan,
+              ),
+              title: const Text('Profile Settings'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const ProfileSettingsPage(),
+                  ),
+                );
+              },
+            ),
             _drawerItem(0, Icons.dashboard, 'Dashboard'),
             _drawerItem(1, Icons.pets, 'My Pets'),
             _drawerItem(2, Icons.restaurant, 'Feeding Schedule'),
@@ -477,88 +726,14 @@ class _HomePageState extends State<HomePage> {
             _drawerItem(5, Icons.favorite, 'Health History'),
             const Divider(),
             ListTile(
-              leading: const Icon(Icons.logout),
+              leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text('Logout'),
               onTap: () async {
+                Navigator.pop(context);
                 await FirebaseAuth.instance.signOut();
               },
             ),
           ],
-        ),
-      ),
-
-      endDrawer: Drawer(
-        backgroundColor: PawPulseTheme.white,
-        child: SafeArea(
-          child: ListView(
-            padding: EdgeInsets.zero,
-            children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 28, 20, 24),
-                decoration: const BoxDecoration(
-                  gradient: PawPulseTheme.primaryGradient,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      radius: 34,
-                      backgroundColor: PawPulseTheme.white,
-                      child: Icon(
-                        Icons.person,
-                        size: 38,
-                        color: PawPulseTheme.darkNavy,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      user?.displayName?.trim().isNotEmpty == true
-                          ? user!.displayName!
-                          : 'PawPulse User',
-                      style: const TextStyle(
-                        color: PawPulseTheme.darkNavy,
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      user?.email ?? 'No email available',
-                      style: const TextStyle(
-                        color: PawPulseTheme.darkNavy,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              ListTile(
-                leading: const Icon(
-                  Icons.settings_outlined,
-                  color: PawPulseTheme.primaryCyan,
-                ),
-                title: const Text('Profile Settings'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const ProfileSettingsPage(),
-                    ),
-                  );
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: const Icon(Icons.logout, color: Colors.red),
-                title: const Text('Logout'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  await FirebaseAuth.instance.signOut();
-                },
-              ),
-            ],
-          ),
         ),
       ),
 
@@ -713,7 +888,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _getPetRow(Datum pet) {
-    final petImage = _getPetImage(pet.petImage);
+    final petImage = _getPetImage(pet.petImage, petId: pet.id);
 
     return Card(
       color: Colors.white,
@@ -795,7 +970,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _showPetDetailsDialog(Datum pet) {
-    final petImage = _getPetImage(pet.petImage);
+    final petImage = _getPetImage(pet.petImage, petId: pet.id);
 
     showDialog(
       context: context,
@@ -973,7 +1148,7 @@ class _HomePageState extends State<HomePage> {
                           },
                           itemBuilder: (context, index) {
                             final pet = usersPets.data[index];
-                            final petImage = _getPetImage(pet.petImage);
+                            final petImage = _getPetImage(pet.petImage, petId: pet.id);
 
                             return InkWell(
                               borderRadius: BorderRadius.circular(8),
@@ -1331,7 +1506,7 @@ class _HomePageState extends State<HomePage> {
   Widget _dashboardScheduleRow(_DashboardScheduleItem item) {
     final pet = _findPet(item.petId);
     final petName = pet?.petName ?? 'Pet';
-    final petImg = _getPetImage(pet?.petImage ?? '');
+    final petImg = _getPetImage(pet?.petImage ?? '', petId: pet?.id);
 
     final statusText = item.category == 'medicine'
         ? (item.isCompleted ? 'Given' : 'Pending')

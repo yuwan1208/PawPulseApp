@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../theme/pawpulse_theme.dart';
+import 'register_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -323,23 +324,35 @@ class _LoginPageState extends State<LoginPage> {
 
                             // Register Link
                             Center(
-                              child: RichText(
-                                text: TextSpan(
-                                  style: TextStyle(
-                                    color: PawPulseTheme.secondaryGray,
-                                    fontSize: 14,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    'Not a member? ',
+                                    style: TextStyle(
+                                      color: PawPulseTheme.secondaryGray,
+                                      fontSize: 14,
+                                    ),
                                   ),
-                                  children: [
-                                    const TextSpan(text: 'Not a member? '),
-                                    TextSpan(
-                                      text: 'Register now',
+                                  GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const RegisterPage(),
+                                        ),
+                                      );
+                                    },
+                                    child: const Text(
+                                      'Register now',
                                       style: TextStyle(
                                         color: PawPulseTheme.darkNavy,
                                         fontWeight: FontWeight.bold,
+                                        fontSize: 14,
                                       ),
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
